@@ -61,7 +61,6 @@
       <arg line="--create_source_map=${outfile}.map"/>
       <arg line="--manage_closure_dependencies"/>
       <arg line="--js=${closure_primitives}"/>
-      <arg line="--js=${def}/typedarray/hybrid.js"/>
       <arg line="${srcfiles}"/>
       <arg line="${exportfiles}"/>
     </java>
@@ -87,7 +86,6 @@
       <arg line="--create_source_map=${outfile}.map"/>
       <arg line="--manage_closure_dependencies"/>
       <arg line="--js=${closure_primitives}"/>
-      <arg line="--js=${def}/typedarray/hybrid.js"/>
       <arg line="${srcfiles}"/>
       <arg line="${exportfiles}"/>
     </java>
