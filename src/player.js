@@ -11,7 +11,7 @@ goog.scope(function() {
 SMF.Player = function() {
   /** @type {number} */
   this.tempo = 500000; // default
-  /** @type {HTMLIFrameElement} */
+  /** @type {Worker} */
   this.webMidiLink;
   /** @type {number} */
   this.resume;
@@ -74,8 +74,6 @@ SMF.Player.prototype.setLoop = function(enable) {
 };
 
 SMF.Player.prototype.stop = function() {
-  /** @type {Window} */
-  var window;
   /** @type {number} */
   var i;
 
@@ -83,9 +81,8 @@ SMF.Player.prototype.stop = function() {
   this.resume = Date.now();
 
   if (this.webMidiLink) {
-    window = this.webMidiLink.contentWindow;
     for (i = 0; i < 16; ++i) {
-      window.postMessage('midi,b' + i.toString(16) + ',78,0', '*');
+      this.webMidiLink.postMessage('midi,b' + i.toString(16) + ',78,0');
     }
   }
 };
@@ -110,7 +107,7 @@ SMF.Player.prototype.init = function() {
   if (this.ready) {
     this.sendInitMessage();
   } else {
-    window.addEventListener('message', (function(ev) {
+    this.webMidiLink.addEventListener('message', (function(ev) {
       if (ev.data === 'link,ready') {
         player.sendInitMessage();
       }
@@ -137,7 +134,7 @@ SMF.Player.prototype.play = function() {
     }
     this.playSequence();
   } else {
-    window.addEventListener('message', (function(ev) {
+    this.webMidiLink.addEventListener('message', (function(ev) {
       if (ev.data === 'link,ready') {
         player.ready = true;
         player.playSequence();
@@ -147,48 +144,35 @@ SMF.Player.prototype.play = function() {
 };
 
 SMF.Player.prototype.sendInitMessage = function() {
-  /** @type {Window} */
-  var window = this.webMidiLink.contentWindow;
   /** @type {number} */
   var i;
 
   for (i = 0; i < 16; ++i) {
     // volume
-    window.postMessage('midi,b' + i.toString(16) + ',07,64', '*');
+    this.webMidiLink.postMessage('midi,b' + i.toString(16) + ',07,64');
     // panpot
-    window.postMessage('midi,b' + i.toString(16) + ',0a,40', '*');
+    this.webMidiLink.postMessage('midi,b' + i.toString(16) + ',0a,40');
     // pitch bend
-    window.postMessage('midi,e' + i.toString(16) + ',00,40', '*');
+    this.webMidiLink.postMessage('midi,e' + i.toString(16) + ',00,40');
     // pitch bend range
-    window.postMessage('midi,b' + i.toString(16) + ',64,00', '*');
-    window.postMessage('midi,b' + i.toString(16) + ',65,00', '*');
-    window.postMessage('midi,b' + i.toString(16) + ',06,02', '*');
-    window.postMessage('midi,b' + i.toString(16) + ',26,00', '*');
+    this.webMidiLink.postMessage('midi,b' + i.toString(16) + ',64,00');
+    this.webMidiLink.postMessage('midi,b' + i.toString(16) + ',65,00');
+    this.webMidiLink.postMessage('midi,b' + i.toString(16) + ',06,02');
+    this.webMidiLink.postMessage('midi,b' + i.toString(16) + ',26,00');
 
   }
 };
 
 /**
- * @param {string} url WebMidiLink url.
+ * @param {Worker} port WebMidiLink message port.
  */
-SMF.Player.prototype.setWebMidiLink = function(url) {
+SMF.Player.prototype.setWebMidiLink = function(port) {
   /** @type {SMF.Player} */
   var player = this;
-  /** @type {HTMLIFrameElement} */
-  var iframe;
 
-  if (this.webMidiLink) {
-    document.body.removeChild(this.webMidiLink);
-    this.webMidiLink = null;
-  }
+  this.webMidiLink = port;
 
-  iframe = this.webMidiLink =
-    /** @type {HTMLIFrameElement} */(document.createElement('iframe'));
-  iframe.src = url || 'http://www.g200kg.com/en/docs/gmplayer/';
-
-  document.body.appendChild(iframe);
-
-  window.addEventListener('message', (function(ev) {
+  this.webMidiLink.addEventListener('message', (function(ev) {
     if (ev.data === 'link,ready') {
       player.ready = true;
       player.setMasterVolume(player.masterVolume);
@@ -200,20 +184,16 @@ SMF.Player.prototype.setWebMidiLink = function(url) {
  * @param {number} volume
  */
 SMF.Player.prototype.setMasterVolume = function(volume) {
-  var window;
-
   this.masterVolume = volume;
 
   if (this.webMidiLink) {
-    window = this.webMidiLink.contentWindow;
-    window.postMessage(
+    this.webMidiLink.postMessage(
       'midi,f0,7f,7f,04,01,' +
       [
         ('0' + ((volume     ) & 0x7f).toString(16)).substr(-2),
         ('0' + ((volume >> 7) & 0x7f).toString(16)).substr(-2),
         '7f'
-      ].join(','),
-      '*'
+      ].join(',')
     );
   }
 };
@@ -232,8 +212,8 @@ SMF.Player.prototype.playSequence = function() {
   var timeDivision = this.sequence.timeDivision;
   /** @type {Array.<Object>} */
   var mergedTrack = this.track;
-  /** @type {Window} */
-  var webMidiLink = this.webMidiLink.contentWindow;
+  /** @type {Worker} */
+  var webMidiLink = this.webMidiLink;
   /** @type {number} */
   var pos = this.position || 0;
   /** @type {Array.<?{pos: number}>} */
@@ -331,7 +311,7 @@ SMF.Player.prototype.playSequence = function() {
       }
 
       // send message
-      webMidiLink.postMessage(mergedTrack[pos++]['webMidiLink'], '*');
+      webMidiLink.postMessage(mergedTrack[pos++]['webMidiLink']);
     } while (pos < length && mergedTrack[pos]['time'] === time);
 
     if (pos < length) {
